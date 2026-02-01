@@ -1,0 +1,7 @@
+{
+  "name": "eldorado-auth-api",
+  "version": "1.0.0",
+  "dependencies": {
+    "aws-amplify": "^6.0.0"
+  }
+}
