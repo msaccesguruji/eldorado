@@ -1,15 +1,27 @@
 const { Amplify } = require('aws-amplify');
 const { signIn, fetchAuthSession } = require('aws-amplify/auth');
 
-module.exports = async (req, res) => {
-    // Only allow POST requests
+export default async function handler(req, res) {
+    // 1. Enable CORS so Apps Script can talk to it
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     const { username, password, poolId, clientId } = req.body;
 
-    // Configure Amplify dynamically based on request
+    if (!username || !password || !poolId || !clientId) {
+        return res.status(400).json({ error: 'Missing required parameters' });
+    }
+
+    // 2. Configure Amplify
     Amplify.configure({
         Auth: {
             Cognito: {
@@ -20,27 +32,23 @@ module.exports = async (req, res) => {
     });
 
     try {
-        const { isSignedIn, nextStep } = await signIn({ 
-            username, 
-            password 
-        });
+        // 3. Attempt Sign In
+        const { isSignedIn, nextStep } = await signIn({ username, password });
 
         if (!isSignedIn) {
             return res.status(401).json({ 
                 success: false, 
-                step: nextStep.signInStep,
-                message: "Challenge required (MFA or New Password)" 
+                nextStep: nextStep.signInStep,
+                message: "Authentication challenge required (MFA or Password Change)." 
             });
         }
 
+        // 4. Get Tokens
         const session = await fetchAuthSession();
-        const idToken = session.tokens?.idToken?.toString();
-        const refreshToken = session.tokens?.refreshToken?.toString();
-
         return res.status(200).json({
             success: true,
-            idToken,
-            refreshToken
+            idToken: session.tokens?.idToken?.toString(),
+            refreshToken: session.tokens?.refreshToken?.toString()
         });
 
     } catch (error) {
@@ -50,4 +58,4 @@ module.exports = async (req, res) => {
             message: error.message 
         });
     }
-};
+}
